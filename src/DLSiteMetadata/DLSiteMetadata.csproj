@@ -5,14 +5,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AngleSharp" Version="0.16.0" />
-        <PackageReference Include="AngleSharp.Io" Version="0.16.0" />
-        <PackageReference Include="JetBrains.Annotations" Version="2022.1.0" PrivateAssets="all" />
-        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2">
+        <PackageReference Include="AngleSharp" Version="1.0.4" />
+        <PackageReference Include="AngleSharp.Io" Version="1.0.0" />
+        <PackageReference Include="JetBrains.Annotations" Version="2023.2.0" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Newtonsoft.Json" Version="10.0.1" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="PlayniteSDK" Version="6.9.0" />
         <PackageReference Include="System.Net.Http" Version="4.3.4" />
         <PackageReference Include="System.ValueTuple" Version="4.5.0" />
     </ItemGroup>

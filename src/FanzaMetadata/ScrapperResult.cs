@@ -14,6 +14,8 @@ public class ScrapperResult
 
     public List<string>? PreviewImages { get; set; }
 
+    public string? Description { get; set; }
+
     public double Rating { get; set; } = double.NaN;
 
     public DateTime ReleaseDate { get; set; } = DateTime.MinValue;

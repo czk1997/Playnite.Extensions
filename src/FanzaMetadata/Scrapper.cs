@@ -17,8 +17,8 @@ public class Scrapper
     private readonly ILogger<Scrapper> _logger;
     private readonly IConfiguration _configuration;
 
-    public const string GameBaseUrl = "https://www.dmm.co.jp/dc/doujin/-/detail/=/cid=d_";
-    public const string IconUrlFormat = "https://doujin-assets.dmm.co.jp/digital/game/d_{0}/d_{0}pt.jpg";
+    public const string GameBaseUrl = "https://dlsoft.dmm.co.jp/detail/";
+    public const string IconUrlFormat = "https://pics.dmm.co.jp/digital/game/d_{0}/d_{0}pt.jpg";
     public const string SearchBaseUrl = "https://www.dmm.co.jp/search/=/searchstr=";
 
     public Scrapper(ILogger<Scrapper> logger, HttpMessageHandler messageHandler)
@@ -36,107 +36,79 @@ public class Scrapper
 
         var context = BrowsingContext.New(_configuration);
         var document = await context.OpenAsync(url, cancellationToken);
-
         var result = new ScrapperResult
         {
             Link = url
         };
-
+        _logger.LogWarning("Get URL Done");
+        // Get title
         var productTitleElement = document
-            .GetElementsByClassName("productTitle__txt")
+            .GetElementsByClassName("productTitle__headline")
             .FirstOrDefault(elem => elem.TagName.Equals(TagNames.H1, StringComparison.OrdinalIgnoreCase));
-
+        _logger.LogWarning("Get Title Done");
         if (productTitleElement is not null)
         {
             var productTitleText = productTitleElement.Text();
-
-            var prefixElements = productTitleElement.GetElementsByClassName("productTitle__txt--campaign");
-            if (prefixElements.Any())
-            {
-                var prefixElement = prefixElements.Last();
-                var prefixElementText = prefixElement.Text();
-                var index = productTitleText.IndexOf(prefixElementText, StringComparison.OrdinalIgnoreCase);
-
-                if (index != -1)
-                {
-                    productTitleText = productTitleText.Substring(index + prefixElementText.Length + 1);
-                }
-            }
-
+            // Removed campaign since no longer useful
             result.Title = productTitleText.Trim();
         }
 
-        var circleNameElement = document.GetElementsByClassName("circleName__txt").FirstOrDefault();
-        if (circleNameElement is not null)
+        _logger.LogWarning("Get Title 2 Done");
+        // Circle is company name i guess
+        var circleNameElement = document.GetElementsByClassName("contentsDetailTop__tableRow");
+        foreach (var rowElement in circleNameElement)
         {
-            result.Circle = circleNameElement.Text().Trim();
-        }
-
-        var productPreviewElement = document.GetElementsByClassName("productPreview").FirstOrDefault();
-        if (productPreviewElement is not null)
-        {
-            var previewImages = productPreviewElement.GetElementsByClassName("productPreview__item")
-                .Where(elem => elem.TagName.Equals(TagNames.Li, StringComparison.OrdinalIgnoreCase))
-                .Select(elem => elem.GetElementsByClassName("fn-colorbox").FirstOrDefault())
-                .Where(elem => elem is not null)
-                .Where(elem => elem!.TagName.Equals(TagNames.A, StringComparison.OrdinalIgnoreCase))
-                .Cast<IHtmlAnchorElement>()
-                .Select(anchor => anchor.Href)
-                .Where(href => !string.IsNullOrWhiteSpace(href))
-                .ToList();
-
-            result.PreviewImages = previewImages.Any() ? previewImages : null;
-        }
-
-        // result.PreviewImages = document.GetElementsByClassName("previewList__item")
-        //     .Select(elem => elem.Children.FirstOrDefault(x => x.TagName.Equals(TagNames.Img, StringComparison.OrdinalIgnoreCase)))
-        //     .Where(elem => elem is not null)
-        //     .Cast<IHtmlImageElement>()
-        //     .Select(img => img.Source)
-        //     .Where(src => !string.IsNullOrWhiteSpace(src))
-        //     .Select(src => src!)
-        //     .ToList();
-
-        var userReviewElement = document.GetElementsByClassName("userReview__item").FirstOrDefault();
-        if (userReviewElement is not null)
-        {
-            var reviewElement = userReviewElement.GetElementsByTagName(TagNames.A)
-                .Select(elem => elem.Children.FirstOrDefault(x => x.ClassName is not null && x.ClassName.StartsWith("u-common__ico--review")))
-                .FirstOrDefault();
-
-            if (reviewElement is not null)
+            if (rowElement.GetElementsByTagName("td").FirstOrDefault().Text().Contains("ブランド"))
             {
-                var rating = reviewElement.ClassName! switch
-                {
-                    "u-common__ico--review50" => 5.0,
-                    "u-common__ico--review45" => 4.5,
-                    "u-common__ico--review40" => 4.0,
-                    "u-common__ico--review35" => 3.5,
-                    "u-common__ico--review30" => 3.0,
-                    "u-common__ico--review25" => 2.5,
-                    "u-common__ico--review20" => 2.0,
-                    "u-common__ico--review15" => 1.5,
-                    "u-common__ico--review10" => 1.0,
-                    "u-common__ico--review05" => 0.5,
-                    "u-common__ico--review00" => 0.0,
-                    _ => double.NaN
-                };
-
-                result.Rating = rating;
+                result.Circle = rowElement.GetElementsByTagName("td")[1].GetElementsByTagName("a").FirstOrDefault()
+                    .Text().Trim();
             }
         }
 
-        var informationListElements = document.GetElementsByClassName("informationList");
+        _logger.LogWarning("Get Circle Done");
+
+        // Get preview
+        var productPreviewElement = document.GetElementsByClassName("slider-area").FirstOrDefault();
+        if (productPreviewElement is not null)
+        {
+            _logger.LogWarning("there is preivew html" +  productPreviewElement.GetElementsByClassName("image-slider").FirstOrDefault()!
+                .GetElementsByTagName("img").Length);
+            var previewImages =
+                productPreviewElement.GetElementsByClassName("image-slider").FirstOrDefault()!
+                    .GetElementsByTagName("img").Cast<IHtmlImageElement>().Select(img => img.Source)
+                    .Where(source => !string.IsNullOrWhiteSpace(source)).ToList();
+
+            result.PreviewImages = (previewImages.Any() ? previewImages : null)!;
+        }
+
+        _logger.LogWarning("Get Preview Done");
+        //get review
+        var userReviewElement = document.GetElementsByClassName("d-review__average").FirstOrDefault()
+            .GetElementsByTagName("strong").FirstOrDefault().Text().Replace("点", "");
+        result.Rating = Double.Parse(userReviewElement);
+
+
+        var description = document.GetElementsByClassName("read-text-area").FirstOrDefault();
+        if (description is not null)
+        {
+            result.Description =  description.InnerHtml;
+        }
+
+
+
+        var informationListElements = document.GetElementsByClassName("contentsDetailBottom__tableRow");
         if (informationListElements.Any())
         {
             foreach (var informationListElement in informationListElements)
             {
-                var ttlElement = informationListElement.GetElementsByClassName("informationList__ttl").FirstOrDefault();
+                var ttlElement = informationListElement.GetElementsByClassName("contentsDetailBottom__tableDataLeft")
+                    .FirstOrDefault();
                 if (ttlElement is null) continue;
 
                 var ttlText = ttlElement.Text().Trim();
 
-                var txtElement = informationListElement.GetElementsByClassName("informationList__txt").FirstOrDefault();
+                var txtElement = informationListElement.GetElementsByClassName("contentsDetailBottom__tableDataRight")
+                    .FirstOrDefault();
                 var txt = txtElement?.Text().Trim();
 
                 if (ttlText.Equals("配信開始日", StringComparison.OrdinalIgnoreCase))
@@ -144,38 +116,52 @@ public class Scrapper
                     // release date
                     if (txt is null) continue;
 
+                    // check the txt is format as yyyy/mm/dd via regex
+
                     // "2021/12/25 00:00"
                     var index = txt.IndexOf(' ');
-                    if (index == -1) continue;
+
 
                     // "2021/12/25"
-                    txt = txt.Substring(0, index);
+                    if (index > -1)
+                    {
+                        txt = txt.Substring(0, index);
+                    }
 
                     if (DateTime.TryParseExact(txt, "yyyy/MM/dd", null, DateTimeStyles.None, out var releaseDate))
                     {
                         result.ReleaseDate = releaseDate;
                     }
-                } else if (ttlText.Equals("ゲームジャンル", StringComparison.OrdinalIgnoreCase))
+
+                    _logger.LogWarning("release date done" + result.ReleaseDate);
+                }
+                else if (ttlText.Equals("ゲームジャンル", StringComparison.OrdinalIgnoreCase))
                 {
                     // game genres, not the same as genres (this is more like a theme, eg "RPG")
                     if (txt is null) continue;
 
                     result.GameGenre = txt;
-                } else if (ttlText.Equals("シリーズ", StringComparison.OrdinalIgnoreCase))
+                    _logger.LogWarning("release GameGenre done" + result.GameGenre);
+                }
+                else if (ttlText.Equals("シリーズ", StringComparison.OrdinalIgnoreCase))
                 {
                     // series
                     if (txt is null) continue;
                     if (txt.Equals("----")) continue;
 
                     result.Series = txt;
-                } else if (ttlText.Equals("ジャンル", StringComparison.OrdinalIgnoreCase))
+                    _logger.LogWarning("release series done" + result.Series);
+                }
+                else if (ttlText.Equals("ジャンル", StringComparison.OrdinalIgnoreCase))
                 {
                     // genres, not the same as game genre (this is more like tags)
-                    var genreTagTextElements = informationListElement.GetElementsByClassName("genreTag__txt");
+                    var genreTagTextElements = informationListElement.GetElementsByClassName(
+                        "component-textLink component-textLink__state component-textLink__state--initial");
 
                     result.Genres = genreTagTextElements
                         .Select(elem => elem.Text().Trim())
                         .ToList();
+                    _logger.LogWarning("release gemeres done" + result.Genres.ToString());
                 }
             }
         }
@@ -194,7 +180,8 @@ public class Scrapper
 
         var anchorElements = document.GetElementsByClassName("tmb")
             .Where(elem => elem.TagName.Equals(TagNames.P, StringComparison.OrdinalIgnoreCase))
-            .Select(elem => elem.Children.FirstOrDefault(x => x.TagName.Equals(TagNames.A, StringComparison.OrdinalIgnoreCase)))
+            .Select(elem =>
+                elem.Children.FirstOrDefault(x => x.TagName.Equals(TagNames.A, StringComparison.OrdinalIgnoreCase)))
             .Cast<IHtmlAnchorElement>();
 
         var results = new List<SearchResult>();

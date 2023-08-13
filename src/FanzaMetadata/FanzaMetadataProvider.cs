@@ -182,6 +182,12 @@ public class FanzaMetadataProvider : OnDemandMetadataProvider
         return new[] { new MetadataNameProperty(circle) };
     }
 
+    public override string GetDescription(GetMetadataFieldArgs args)
+    {
+        var description = GetResult(args)?.Description;
+        return description ?? "";
+    }
+
     public override IEnumerable<Link> GetLinks(GetMetadataFieldArgs args)
     {
         var link = GetResult(args)?.Link;
